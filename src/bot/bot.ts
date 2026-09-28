@@ -1,10 +1,10 @@
 import { Bot, session, InlineKeyboard } from "grammy";
 import { env } from "../config/env.js";
-import { errorBoundary } from "./middleware/errorBoundary.js";
+import { errorBoundary } from "./middleware/errors.js";
 import { authMiddleware } from "./middleware/auth.js";
 import { rateLimitMiddleware } from "./middleware/rateLimit.js";
 import { subscriptionService } from "../services/subscription.js";
-import { getEnabledChannels, buildSubscriptionKeyboard, retrySubKeyboard } from "./helpers/subscription.js";
+import { getEnabledChannels, buildSubscriptionMessage, retrySubKeyboard } from "./keyboards/subscription.js";
 import { registerStart } from "./handlers/start.js";
 import { registerLinks } from "./handlers/links.js";
 import { registerDownloads } from "./handlers/downloads.js";
@@ -26,7 +26,7 @@ bot.use(rateLimitMiddleware);
 
 // Subscription verification callback
 bot.callbackQuery("sub:check", async (ctx) => {
-    const result = await subscriptionService.check(ctx.from!.id);
+    const result = await subscriptionService.check(bot, ctx.from!.id);
     if (result.ok) {
         await ctx.answerCallbackQuery({ text: "✅ تم التحقق من الاشتراك." });
         const text = [
@@ -57,7 +57,8 @@ registerStats(bot);
 registerLinks(bot);
 
 bot.catch((err) => {
-    logger.error({ err: err.error?.message, stack: err.error?.stack }, "Bot error occurred");
+    const e = err.error as Error;
+    logger.error({ err: e.message, stack: e.stack }, "Bot error occurred");
 });
 
 export default bot;
