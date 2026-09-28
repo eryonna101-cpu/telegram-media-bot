@@ -1,0 +1,32 @@
+{
+  "name": "telegram-media-downloader-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Production-ready Telegram Media Downloader Bot (grammY + yt-dlp + FFmpeg)",
+  "type": "module",
+  "main": "dist/index.js",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "migrate": "tsx src/database/migrations/run.ts"
+  },
+  "dependencies": {
+    "grammy": "^1.30.0",
+    "better-sqlite3": "^11.8.0",
+    "pino": "^9.5.0",
+    "pino-pretty": "^11.3.0",
+    "zod": "^3.24.0",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "tsx": "^4.19.0",
+    "@types/node": "^22.10.0",
+    "@types/better-sqlite3": "^7.6.12"
+  }
+}
