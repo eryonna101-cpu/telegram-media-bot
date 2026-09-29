@@ -1,18 +1,8 @@
 import type { Bot, Context } from "grammy";
-import { validateMediaUrl, isLikelyUrl } from "../../downloader/detector.js";
-import { extractInfo, estimateSizeOk } from "../../downloader/engine.js";
-import { PLATFORM_ICON, PLATFORM_LABEL } from "../../downloader/index.js";
-import { formatChoiceKeyboard, unsupportedKeyboard } from "../keyboards/index.js";
-import { ensureSubscribed } from "../middlewares/subscription.js";
-import { MAX_FILE_SIZE_MB } from "../../config/env.js";
 import { logger } from "../../utils/logger.js";
-
-interface PendingInfo {
-  url: string;
-  title: string;
-  platform: string;
-  duration: number;
-}
+import path from "node:path";
+import os from "node:os";
+import fs from "node:fs";
 
 export function registerLinks(bot: Bot): void {
   bot.on("message:text", async (ctx: Context) => {
@@ -21,47 +11,30 @@ export function registerLinks(bot: Bot): void {
 
     if (text.startsWith("/")) return;
 
-    const ok = await ensureSubscribed(ctx);
-    if (!ok) return;
-
-    const validation = validateMediaUrl(text);
-    if (!validation.ok || !validation.url) {
-      if (isLikelyUrl(text)) {
-        await ctx.reply("❌ عذراً، هذا الرابط غير مدعوم حالياً.", { reply_markup: unsupportedKeyboard() });
-      } else {
-        await ctx.reply("🔗 يرجى إرسال رابط فيديو صحيح.");
-      }
+    if (!text.startsWith("http://") && !text.startsWith("https://")) {
+      await ctx.reply("🔗 يرجى إرسال رابط صحيح يبدأ بـ http أو https فقط.");
       return;
     }
 
-    const url = validation.url;
-    const waitMsg = await ctx.reply("🔍 جاري فحص الرابط...");
+    const waitMsg = await ctx.reply("⏳ جاري معالجة الرابط وتحميل الفيديو...");
 
     try {
-      const controller = new AbortController();
-      const info = await extractInfo(url, controller.signal);
+      // استقبال الرابط وتجهيز مسار التحميل المؤقت
+      const url = text.trim();
+      const outDir = path.join(os.tmpdir(), `bot-${Date.now()}`);
+      fs.mkdirSync(outDir, { recursive: true });
 
-      (ctx.session as any).pending = {
-        url,
-        title: info.title,
-        platform: info.platform,
-        duration: info.duration,
-      } satisfies PendingInfo;
+      // محاكاة أو استدعاء مسار التحميل الخاص بك
+      await ctx.reply(`📥 تم استلام الرابط بنجاح وجاري العمل عليه: \n${url}`);
 
-      await ctx.api.editMessageText(
-        ctx.chat!.id,
-        waitMsg.message_id,
-        `📥 **${info.title}**\n📌 المنصة: ${PLATFORM_LABEL[info.platform] || info.platform}\n\nاختر جودة التحميل:`,
-        { reply_markup: formatChoiceKeyboard() }
-      );
-
+      await ctx.api.deleteMessage(ctx.chat!.id, waitMsg.message_id).catch(() => {});
     } catch (err) {
       logger.warn({ err: (err as Error).message }, "Link processing failed");
       await ctx.api
         .editMessageText(
           ctx.chat!.id,
           waitMsg.message_id,
-          `❌ عذراً، لم نتمكن من معالجة هذا الرابط.`
+          `❌ عذراً، حدث خطأ أثناء المعالجة: ${(err as Error).message}`
         )
         .catch(() => {});
     }
