@@ -1,13 +1,5 @@
 import type { Bot, Context } from "grammy";
-import { ensureSubscribed } from "../middlewares/subscription.js";
 import { logger } from "../../utils/logger.js";
-
-interface PendingInfo {
-  url: string;
-  title: string;
-  platform: string;
-  duration: number;
-}
 
 export function registerLinks(bot: Bot): void {
   bot.on("message:text", async (ctx: Context) => {
@@ -17,10 +9,7 @@ export function registerLinks(bot: Bot): void {
     // ignore commands
     if (text.startsWith("/")) return;
 
-    const ok = await ensureSubscribed(ctx);
-    if (!ok) return;
-
-    // التحقق البسيط من أن النص يبدو كرابط
+    // التحقق من أن النص يبدو كرابط
     if (!text.startsWith("http://") && !text.startsWith("https://")) {
       await ctx.reply("🔗 يرجى إرسال رابط صحيح يبدأ بـ http أو https فقط.");
       return;
@@ -31,7 +20,6 @@ export function registerLinks(bot: Bot): void {
     try {
       const url = text.trim();
 
-      // تخزين بيانات مؤقتة وجلب التحميل مباشرة
       const cobaltApiUrl = "https://api.cobalt.tools/api/json";
       const response = await fetch(cobaltApiUrl, {
         method: "POST",
@@ -55,7 +43,7 @@ export function registerLinks(bot: Bot): void {
         throw new Error(data.text || "فشل جلب الرابط من سيرفر Cobalt");
       }
 
-      // إرسال الملف مباشرة للمستخدم
+      // إرسال الرابط المباشر للمستخدم
       await ctx.api.editMessageText(
         ctx.chat!.id,
         waitMsg.message_id,
