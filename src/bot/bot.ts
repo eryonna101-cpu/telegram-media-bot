@@ -3,8 +3,6 @@ import { env } from "../config/env.js";
 import { errorBoundary } from "./middleware/errors.js";
 import { authMiddleware } from "./middleware/auth.js";
 import { rateLimitMiddleware } from "./middleware/rateLimit.js";
-import { subscriptionService } from "../services/subscription.js";
-import { getEnabledChannels, buildSubscriptionMessage, retrySubKeyboard } from "./helpers/subscription.js";
 import { registerStart } from "./handlers/start.js";
 import { registerLinks } from "./handlers/links.js";
 import { registerDownloads } from "./handlers/downloads.js";
@@ -23,32 +21,6 @@ bot.use(
 bot.use(errorBoundary);
 bot.use(authMiddleware);
 bot.use(rateLimitMiddleware);
-
-// Subscription verification callback
-bot.callbackQuery("sub:check", async (ctx) => {
-  const result = await subscriptionService.verify(ctx.from.id);
-  if (result.ok) {
-    await ctx.answerCallbackQuery({ text: "تم التحقق بنجاح!" });
-    const text = [
-      "✅ تم التحقق من الاشتراك بنجاح.",
-      "",
-      "أرسل رابط الفيديو وسأجهزه لك الآن",
-      "🟢 النظام يعمل بكفاءة."
-    ].join("\n");
-    await ctx.editMessageText(text, {
-      reply_markup: new InlineKeyboard()
-        .text("ℹ️ المساعدة", "help:show")
-        .text("📊 إحصائيات", "stats:show"),
-    });
-  } else {
-    subscriptionService.invalidate(ctx.from.id);
-    const channels = getEnabledChannels();
-    await ctx.answerCallbackQuery({ text: "يرجى الاشتراك في القنوات أولاً" });
-    await ctx.editMessageText(buildSubscriptionMessage(channels), {
-      reply_markup: retrySubKeyboard(),
-    });
-  }
-});
 
 registerStart(bot);
 registerAdmin(bot);
