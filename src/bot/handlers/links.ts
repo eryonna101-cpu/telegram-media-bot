@@ -1,10 +1,5 @@
 import type { Bot, Context } from "grammy";
-import { validateMediaUrl, isLikelyUrl } from "../../utils/urls.js";
-import { extractInfo, formatInfoCard, estimateSizeOk } from "../../downloader/engine.js";
-import { PLATFORM_ICON, PLATFORM_LABEL } from "../../downloader/detector.js";
-import { formatChoiceKeyboard, unsupportedKeyboard } from "../keyboards/download.js";
-import { ensureSubscribed } from "../middleware/subscription.js";
-import { MAX_FILE_SIZE_MB } from "../../config/env.js";
+import { ensureSubscribed } from "../middlewares/subscription.js";
 import { logger } from "../../utils/logger.js";
 
 interface PendingInfo {
@@ -16,7 +11,8 @@ interface PendingInfo {
 
 export function registerLinks(bot: Bot): void {
   bot.on("message:text", async (ctx: Context) => {
-    const text = ctx.message.text;
+    const text = ctx.message?.text;
+    if (!text) return;
 
     // ignore commands
     if (text.startsWith("/")) return;
@@ -24,59 +20,55 @@ export function registerLinks(bot: Bot): void {
     const ok = await ensureSubscribed(ctx);
     if (!ok) return;
 
-    const validation = validateMediaUrl(text);
-    if (!validation.ok || !validation.url) {
-      if (isLikelyUrl(text)) {
-        await ctx.reply(
-          `❌ الرابط غير صالح.\nتأكد أنه يبدأ بـ http(s):// ولموجه عام.`,
-          { reply_markup: unsupportedKeyboard() },
-        );
-      } else {
-        await ctx.reply(
-          `🔗 أرسل رابط الفيديو فقط.\n\nمثال:\nhttps://www.youtube.com/watch?v=...`,
-        );
-      }
+    // التحقق البسيط من أن النص يبدو كرابط
+    if (!text.startsWith("http://") && !text.startsWith("https://")) {
+      await ctx.reply("🔗 يرجى إرسال رابط صحيح يبدأ بـ http أو https فقط.");
       return;
     }
 
-    const url = validation.url;
-    const waitMsg = await ctx.reply("🔍 جاري التعرف على الرابط...");
+    const waitMsg = await ctx.reply("🔍 جاري معالجة الرابط عبر Cobalt...");
 
     try {
-      const controller = new AbortController();
-      const info = await extractInfo(url, controller.signal);
+      const url = text.trim();
 
-      // store pending in session
-      (ctx.session as any).pending = {
-        url,
-        title: info.title,
-        platform: info.platform,
-        duration: info.duration,
-      } satisfies PendingInfo;
+      // تخزين بيانات مؤقتة وجلب التحميل مباشرة
+      const cobaltApiUrl = "https://api.cobalt.tools/api/json";
+      const response = await fetch(cobaltApiUrl, {
+        method: "POST",
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          url: url,
+          vQuality: "720"
+        })
+      });
 
-      let card = formatInfoCard(info);
-      if (!estimateSizeOk(info)) {
-        card = `❌ الملف كبير جدًا للإرسال عبر Telegram (الحد ${MAX_FILE_SIZE_MB}MB).`;
-        await ctx.api.editMessageText(
-          ctx.chat!.id,
-          waitMsg.message_id,
-          card,
-          { reply_markup: unsupportedKeyboard() },
-        );
-        return;
+      if (!response.ok) {
+        throw new Error(`Cobalt API failed with status ${response.status}`);
       }
 
-      await ctx.api.editMessageText(ctx.chat!.id, waitMsg.message_id, card, {
-        reply_markup: formatChoiceKeyboard(),
-      });
+      const data: any = await response.json();
+
+      if (data.status === "error" || !data.url) {
+        throw new Error(data.text || "فشل جلب الرابط من سيرفر Cobalt");
+      }
+
+      // إرسال الملف مباشرة للمستخدم
+      await ctx.api.editMessageText(
+        ctx.chat!.id,
+        waitMsg.message_id,
+        `✅ تم تجهيز الفيديو بنجاح!\n🔗 الرابط المباشر:\n${data.url}`
+      );
+
     } catch (err) {
-      logger.warn({ err: (err as Error).message, url }, "Link detection failed");
+      logger.warn({ err: (err as Error).message }, "Download failed");
       await ctx.api
         .editMessageText(
           ctx.chat!.id,
           waitMsg.message_id,
-          `❌ هذا الرابط غير مدعوم حاليًا.\n${PLATFORM_ICON.other} المنصة: غير معروفة`,
-          { reply_markup: unsupportedKeyboard() },
+          `❌ عذراً، حدث خطأ أثناء معالجة الرابط: ${(err as Error).message}`
         )
         .catch(() => {});
     }
