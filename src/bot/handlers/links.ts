@@ -13,37 +13,25 @@ export function registerLinks(bot: Bot): void {
       return;
     }
 
-    const waitMsg = await ctx.reply("🔍 جاري معالجة الرابط عبر Cobalt...");
+    const waitMsg = await ctx.reply("🔍 جاري جلب رابط التحميل...");
 
     try {
       const url = text.trim();
 
-      const cobaltApiUrl = "https://api.cobalt.tools/api/json";
-      const response = await fetch(cobaltApiUrl, {
-        method: "POST",
-        headers: {
-          "Accept": "application/json",
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          url: url,
-          vQuality: "720",
-          filenameStyle: "pretty"
-        })
-      });
+      // استخدام خدمة بديلة ومستقرة لمعالجة الروابط
+      const apiUrl = `https://p.surl.co/api/get?url=${encodeURIComponent(url)}`;
+      const response = await fetch(apiUrl);
 
       if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`Status ${response.status}: ${errText}`);
+        throw new Error(`API failed with status ${response.status}`);
       }
 
       const data: any = await response.json();
+      const mediaUrl = data.url || data.download_url || data.link;
 
-      if (data.status === "error" || (!data.url && !data.picker)) {
-        throw new Error(data.text || "فشل جلب الرابط من سيرفر Cobalt");
+      if (!mediaUrl) {
+        throw new Error("لم يتم العثور على رابط تحميل مباشر لهذا الفيديو.");
       }
-
-      const mediaUrl = data.url || (data.picker && data.picker[0]?.url);
 
       await ctx.api.editMessageText(
         ctx.chat!.id,
