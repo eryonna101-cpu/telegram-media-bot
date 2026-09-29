@@ -6,10 +6,8 @@ export function registerLinks(bot: Bot): void {
     const text = ctx.message?.text;
     if (!text) return;
 
-    // ignore commands
     if (text.startsWith("/")) return;
 
-    // التحقق من أن النص يبدو كرابط
     if (!text.startsWith("http://") && !text.startsWith("https://")) {
       await ctx.reply("🔗 يرجى إرسال رابط صحيح يبدأ بـ http أو https فقط.");
       return;
@@ -29,25 +27,28 @@ export function registerLinks(bot: Bot): void {
         },
         body: JSON.stringify({
           url: url,
-          vQuality: "720"
+          vQuality: "720",
+          filenameStyle: "pretty"
         })
       });
 
       if (!response.ok) {
-        throw new Error(`Cobalt API failed with status ${response.status}`);
+        const errText = await response.text();
+        throw new Error(`Status ${response.status}: ${errText}`);
       }
 
       const data: any = await response.json();
 
-      if (data.status === "error" || !data.url) {
+      if (data.status === "error" || (!data.url && !data.picker)) {
         throw new Error(data.text || "فشل جلب الرابط من سيرفر Cobalt");
       }
 
-      // إرسال الرابط المباشر للمستخدم
+      const mediaUrl = data.url || (data.picker && data.picker[0]?.url);
+
       await ctx.api.editMessageText(
         ctx.chat!.id,
         waitMsg.message_id,
-        `✅ تم تجهيز الفيديو بنجاح!\n🔗 الرابط المباشر:\n${data.url}`
+        `✅ تم تجهيز الفيديو بنجاح!\n🔗 الرابط المباشر:\n${mediaUrl}`
       );
 
     } catch (err) {
