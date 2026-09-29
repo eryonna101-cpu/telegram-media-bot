@@ -42,6 +42,8 @@ export function downloadWithYtdlp(opts: DownloadOptions): Promise<YtdlpResult> {
       "--no-playlist",
       "--no-warnings",
       "--no-check-certificates",
+      "--user-agent",
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       "-o",
       outTemplate,
     ];
@@ -71,7 +73,6 @@ export function downloadWithYtdlp(opts: DownloadOptions): Promise<YtdlpResult> {
         return reject(new Error(stderr.trim() || `yt-dlp failed with code ${code}`));
       }
 
-      // البحث عن الملف المحمل مباشرة داخل المجلد المؤقت وإرساله
       fs.readdir(outDir, (err, files) => {
         if (err || files.length === 0) {
           return reject(new Error("Downloaded file not found in output directory"));
