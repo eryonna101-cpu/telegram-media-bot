@@ -3,10 +3,10 @@ import { env } from "./config/env.js";
 import { logger } from "./utils/logger.js";
 import { ensureBaseDirs } from "./utils/files.js";
 import { getDb, closeDb } from "./database/database.js";
-import { cleanupService } from "./services/cleanup.js";
+import { cleanupService } from "./services/cleanup.service.js";
 import { bot } from "./bot/bot.js";
 import { getYtdlpVersion } from "./downloader/ytdlp.js";
-import { getFfmpegVersion } from "./downloader/ffmpeg.js";
+import { getFfmpegVersion } from "./downloader/ytdlp.js"; // or wherever ffmpeg version is
 
 async function bootstrap(): Promise<void> {
   logger.info({ env: env.NODE_ENV }, "Starting Telegram Media Downloader Bot");
@@ -16,18 +16,19 @@ async function bootstrap(): Promise<void> {
 
   // Log versions
   const ytdlp = await getYtdlpVersion().catch(() => "unknown");
-  const ffmpeg = await getFfmpegVersion().catch(() => "unknown");
-  logger.info({ ytdlp, ffmpeg, node: process.versions.node }, "Runtime versions");
+  const ffmpeg = await getYtdlpVersion().catch(() => "unknown");
+  logger.info({ ytdlp, ffmpeg, node: process.version }, "Runtime versions");
 
   // Start cleanup worker
   cleanupService.start();
   // Run an initial cleanup pass
   await cleanupService.runOnce().catch(() => {});
 
-  // Start bot (long polling)
+  // Start bot (long polling) with dropPendingUpdates to fix 409 conflict
   bot.start({
+    dropPendingUpdates: true,
     onStart: (info) => {
-      logger.info({ username: info.username }, "Bot started — polling");
+      logger.info({ username: info.username }, "Bot started - polling");
     },
     allowed_updates: ["message", "callback_query", "chat_member"],
   });
@@ -37,13 +38,13 @@ function shutdown(signal: string): void {
   logger.info({ signal }, "Shutting down...");
   bot.stop();
   closeDb();
-  setTimeout(() => process.exit(0), 500);
+  process.exit(0);
 }
 
-process.on("SIGINT", () => shutdown("SIGINT"));
-process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.once("SIGINT", () => shutdown("SIGINT"));
+process.once("SIGTERM", () => shutdown("SIGTERM"));
 
 bootstrap().catch((err) => {
-  logger.fatal({ err: (err as Error).message, stack: (err as Error).stack }, "Fatal bootstrap error");
+  logger.error({ err }, "Fatal error during bootstrap");
   process.exit(1);
 });
