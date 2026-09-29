@@ -13,24 +13,33 @@ export function registerLinks(bot: Bot): void {
       return;
     }
 
-    const waitMsg = await ctx.reply("🔍 جاري جلب رابط التحميل...");
+    const waitMsg = await ctx.reply("🔍 جاري معالجة وتحميل الرابط...");
 
     try {
       const url = text.trim();
 
-      // استخدام خدمة بديلة ومستقرة لمعالجة الروابط
-      const apiUrl = `https://p.surl.co/api/get?url=${encodeURIComponent(url)}`;
-      const response = await fetch(apiUrl);
+      // استخدام API بديل لـ Cobalt يعمل بكفاءة
+      const response = await fetch("https://co.wuk.sh/api/json", {
+        method: "POST",
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          url: url,
+          vQuality: "720"
+        })
+      });
 
       if (!response.ok) {
-        throw new Error(`API failed with status ${response.status}`);
+        throw new Error(`API error: ${response.status}`);
       }
 
       const data: any = await response.json();
-      const mediaUrl = data.url || data.download_url || data.link;
+      const mediaUrl = data.url || (data.picker && data.picker[0]?.url);
 
       if (!mediaUrl) {
-        throw new Error("لم يتم العثور على رابط تحميل مباشر لهذا الفيديو.");
+        throw new Error(data.text || "لم يتم العثور على رابط تحميل مباشر.");
       }
 
       await ctx.api.editMessageText(
