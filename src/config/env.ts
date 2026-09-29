@@ -6,16 +6,16 @@ const schema = z.object({
     .string()
     .min(1, "OWNER_ID is required")
     .transform((v) => Number(v))
-    .refine((n) => Number.isInteger(n) && n > 0, "OWNER_ID must be a positive integer"),
+    .refine((n) => Number.isInteger(n) && n > 0),
 
   DATABASE_URL: z.string().default(""),
   MAX_FILE_SIZE_MB: z.coerce.number().int().positive().default(50),
-  MAX_CONCURRENT_DOWNLOADS: z.coerce.number().int().positive().default(2),
+  MAX_CONCURRENT_DOWNLOADS: z.coerce.number().int().positive().default(3),
   PER_USER_CONCURRENT: z.coerce.number().int().positive().default(1),
   DOWNLOAD_TIMEOUT_SECONDS: z.coerce.number().int().positive().default(300),
 
-  USER_RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(10),
-  GLOBAL_RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(60),
+  USER_RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(20),
+  GLOBAL_RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(100),
 
   FORCE_SUBSCRIPTION_ENABLED: z
     .string()
@@ -38,13 +38,12 @@ const parsed = schema.safeParse(process.env);
 
 if (!parsed.success) {
   // eslint-disable-next-line no-console
-  console.error("❌ Invalid environment variables:");
-  console.error(JSON.stringify(parsed.error.flatten().fieldErrors, null, 2));
+  console.error("❌ Invalid environment variables:", JSON.stringify(parsed.error.format(), null, 2));
   process.exit(1);
 }
 
 export const env = parsed.data;
 
+// تصدير المتغيرات المطلوبة مباشرة لتجنب أخطاء الاستيراد
+export const MAX_FILE_SIZE_MB = env.MAX_FILE_SIZE_MB;
 export const MAX_FILE_SIZE_BYTES = env.MAX_FILE_SIZE_MB * 1024 * 1024;
-
-export type Env = typeof env;
