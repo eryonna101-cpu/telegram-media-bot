@@ -6,7 +6,6 @@ import { getDb, closeDb } from "./database/database.js";
 import { cleanupService } from "./services/cleanup.service.js";
 import { bot } from "./bot/bot.js";
 import { getYtdlpVersion } from "./downloader/ytdlp.js";
-import { getFfmpegVersion } from "./downloader/ytdlp.js"; // or wherever ffmpeg version is
 
 async function bootstrap(): Promise<void> {
   logger.info({ env: env.NODE_ENV }, "Starting Telegram Media Downloader Bot");
@@ -16,8 +15,7 @@ async function bootstrap(): Promise<void> {
 
   // Log versions
   const ytdlp = await getYtdlpVersion().catch(() => "unknown");
-  const ffmpeg = await getYtdlpVersion().catch(() => "unknown");
-  logger.info({ ytdlp, ffmpeg, node: process.version }, "Runtime versions");
+  logger.info({ ytdlp, node: process.version }, "Runtime versions");
 
   // Start cleanup worker
   cleanupService.start();
