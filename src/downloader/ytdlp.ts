@@ -1,21 +1,7 @@
-import { spawn } from "node:child_process";
 import { env } from "../config/env.js";
 import { logger } from "../utils/logger.js";
 import fs from "node:fs";
 import path from "node:path";
-
-export function getYtdlpVersion(): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(env.YTDLP_BIN, ["--version"]);
-    let out = "";
-    proc.stdout.on("data", (d) => (out += d.toString()));
-    proc.on("error", reject);
-    proc.on("close", (code) => {
-      if (code !== 0) return reject(new Error("Failed to get version"));
-      resolve(out.trim().split("\n")[0]);
-    });
-  });
-}
 
 export interface DownloadOptions {
   url: string;
@@ -33,72 +19,71 @@ export interface YtdlpResult {
   platform: string;
 }
 
-export function downloadWithYtdlp(opts: DownloadOptions): Promise<YtdlpResult> {
-  return new Promise((resolve, reject) => {
-    const { url, mediaType, outDir, signal } = opts;
-    const outTemplate = path.join(outDir, "%(id)s.%(ext)s");
+export async function downloadWithYtdlp(opts: DownloadOptions): Promise<YtdlpResult> {
+  const { url, mediaType, outDir, signal } = opts;
 
-    const args: string[] = [
-      "--no-playlist",
-      "--no-warnings",
-      "--no-check-certificates",
-      "--geo-bypass",
-      "--user-agent",
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      "-o",
-      outTemplate,
-    ];
+  logger.info({ url, mediaType }, "Starting download via Cobalt API");
 
-    if (mediaType === "audio") {
-      args.push("-x", "--audio-format", "mp3");
-    } else {
-      args.push("-f", "bv*+ba/b", "--merge-output-format", "mp4");
-    }
+  // استخدام سيرفر Cobalt العام (أو يمكنك استبداله برابط سيرفرك الخاص إذا كنت حاسبه)
+  const cobaltApiUrl = "https://api.cobalt.tools/api/json";
 
-    args.push(url);
-
-    logger.info({ mediaType, outDir }, "Starting robust yt-dlp download");
-
-    const proc = spawn(env.YTDLP_BIN, args, { signal });
-    let stderr = "";
-
-    proc.stderr.on("data", (d) => {
-      stderr += d.toString();
-    });
-
-    proc.on("error", (err) => reject(err));
-
-    proc.on("close", (code) => {
-      if (signal.aborted) return reject(new Error("Aborted"));
-      if (code !== 0) {
-        return reject(new Error(stderr.trim() || `yt-dlp failed with code ${code}`));
-      }
-
-      fs.readdir(outDir, (err, files) => {
-        if (err || files.length === 0) {
-          return reject(new Error("Downloaded file not found in output directory"));
-        }
-        
-        const downloadedFile = path.join(outDir, files[0]);
-        const stats = fs.statSync(downloadedFile);
-
-        resolve({
-          filePath: downloadedFile,
-          title: path.parse(files[0]).name,
-          fileSize: stats.size || 0,
-          duration: 0,
-          platform: "ytdlp",
-        });
-      });
-    });
+  const response = await fetch(cobaltApiUrl, {
+    method: "POST",
+    headers: {
+      "Accept": "application/json",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      url: url,
+      vQuality: "720",
+      audioFormat: mediaType === "audio" ? "mp3" : "best",
+      isAudioOnly: mediaType === "audio"
+    }),
+    signal
   });
+
+  if (!response.ok) {
+    throw new Error(`Cobalt API failed with status ${response.status}`);
+  }
+
+  const data: any = await response.json();
+
+  if (data.status === "error" || !data.url) {
+    throw new Error(data.text || "Failed to fetch media from Cobalt API");
+  }
+
+  const mediaUrl = data.url;
+  const fileName = `media_${Date.now()}.${mediaType === "audio" ? "mp3" : "mp4"}`;
+  const filePath = path.join(outDir, fileName);
+
+  // تحميل الملف المباشر إلى المجلد المؤقت
+  const fileResponse = await fetch(mediaUrl, { signal });
+  if (!fileResponse.ok || !fileResponse.body) {
+    throw new Error("Failed to download media file from direct URL");
+  }
+
+  const buffer = Buffer.from(await fileResponse.arrayBuffer());
+  fs.writeFileSync(filePath, buffer);
+
+  const stats = fs.statSync(filePath);
+
+  return {
+    filePath: filePath,
+    title: data.filename || "media",
+    fileSize: stats.size || 0,
+    duration: 0,
+    platform: "cobalt"
+  };
+}
+
+export async function getYtdlpVersion(): Promise<string> {
+  return "cobalt-api-v2";
 }
 
 export async function checkYtdlpUpdate() {
-  const current = await getYtdlpVersion();
-  return { current, latest: current, updateAvailable: false };
+  return { current: "cobalt", latest: "cobalt", updateAvailable: false };
 }
 
 export async function updateYtdlp(): Promise<string> {
-  return await getYtdlpVersion();
+  return "cobalt";
 }
