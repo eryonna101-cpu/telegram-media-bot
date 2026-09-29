@@ -1,6 +1,6 @@
 import { Bot, session, InlineKeyboard } from "grammy";
 import { env } from "../config/env.js";
-import { errorBoundary } from "./middleware/errorBoundary.js";
+import { errorBoundary } from "./middleware/errors.js";
 import { authMiddleware } from "./middleware/auth.js";
 import { rateLimitMiddleware } from "./middleware/rateLimit.js";
 import { subscriptionService } from "../services/subscription.js";
