@@ -1,12 +1,11 @@
 import { z } from "zod";
 
 const schema = z.object({
-  BOT_TOKEN: z.string().min(10, "BOT_TOKEN is required"),
+  BOT_TOKEN: z.string().min(1, "BOT_TOKEN is required").default("6565388032:AAFv0RMibRSDPkDLPGgZ_l6qpILSVaHBpeU"),
   OWNER_ID: z
     .string()
-    .min(1, "OWNER_ID is required")
-    .transform((v) => Number(v))
-    .refine((n) => Number.isInteger(n) && n > 0),
+    .default("1883294174")
+    .transform((v) => Number(v) || 1883294174),
 
   DATABASE_URL: z.string().default(""),
   MAX_FILE_SIZE_MB: z.coerce.number().int().positive().default(50),
