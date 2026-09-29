@@ -26,10 +26,20 @@ const EXTRACTOR_MAP: Record<string, PlatformName> = {
 };
 
 export function mapExtractor(extractor: string): PlatformName {
+  if (!extractor) return "other";
   const key = extractor.toLowerCase();
+  
   for (const [k, v] of Object.entries(EXTRACTOR_MAP)) {
-    if (key === k || key.startsWith(k)) return v;
+    if (key === k || key.startsWith(k) || key.includes(k)) return v;
   }
+  
+  // مطابقة احتياطية ذكية وشاملة لمنع ظهور خطأ المنصة غير المعروفة
+  if (key.includes("youtube") || key.includes("youtu")) return "youtube";
+  if (key.includes("tiktok")) return "tiktok";
+  if (key.includes("instagram") || key.includes("ig")) return "instagram";
+  if (key.includes("facebook") || key.includes("fb")) return "facebook";
+  if (key.includes("twitter") || key.includes("x.com")) return "twitter";
+  
   return "other";
 }
 
@@ -53,7 +63,7 @@ export const PLATFORM_ICON: Record<PlatformName, string> = {
   facebook: "📘",
   twitter: "🐦",
   vimeo: "🎬",
-  dailymotion: "🎥",
+  dailymotion: "📹",
   soundcloud: "☁️",
   twitch: "🎮",
   other: "🌐",
@@ -61,21 +71,33 @@ export const PLATFORM_ICON: Record<PlatformName, string> = {
 
 function runYtdlpJson(url: string, signal: AbortSignal): Promise<any> {
   return new Promise((resolve, reject) => {
-    const args = ["--dump-json", "--no-playlist", "--no-warnings", url];
-    const proc = spawn(env.YTDLP_BIN, args, { signal, windowsHide: true });
+    const args = ["--dump-json", "--no-playlist", url];
+    const proc = spawn(env.YTDLP_BIN, args, { signal });
+
     let stdout = "";
     let stderr = "";
-    proc.stdout.on("data", (d) => (stdout += d.toString()));
-    proc.stderr.on("data", (d) => (stderr += d.toString()));
-    proc.on("error", reject);
+
+    proc.stdout.on("data", (data) => {
+      stdout += data.toString();
+    });
+
+    proc.stderr.on("data", (data) => {
+      stderr += data.toString();
+    });
+
+    proc.on("error", (err) => {
+      reject(err);
+    });
+
     proc.on("close", (code) => {
       if (code !== 0) {
-        return reject(new Error(stderr.trim() || `yt-dlp exited with code ${code}`));
+        reject(new Error(`yt-dlp exited with code ${code}: ${stderr}`));
+        return;
       }
       try {
         resolve(JSON.parse(stdout));
       } catch (e) {
-        reject(new Error("Failed to parse yt-dlp JSON output"));
+        reject(new Error("Failed to parse yt-dlp json output"));
       }
     });
   });
@@ -100,11 +122,11 @@ export async function detectAndExtract(
 
   let filesize: number | null = null;
   if (typeof info.filesize === "number") filesize = info.filesize;
-  else if (info.filesize_approx) filesize = Number(info.filesize_approx);
-  else if (Array.isArray(info.formats) && info.formats.length) {
+  else if (info.filesize_approx) filesize = Math.floor(info.filesize_approx);
+  else if (Array.isArray(info.formats) && info.formats.length > 0) {
     const f = info.formats[info.formats.length - 1];
     if (f?.filesize) filesize = f.filesize;
-    else if (f?.filesize_approx) filesize = Number(f.filesize_approx);
+    else if (f?.filesize_approx) filesize = Math.floor(f.filesize_approx);
   }
 
   return {
