@@ -56,7 +56,7 @@ export function downloadWithYtdlp(opts: DownloadOptions): Promise<YtdlpResult> {
 
     args.push(url);
 
-    logger.info({ mediaType, outDir }, "Starting yt-dlp download");
+    logger.info({ mediaType, outDir }, "Starting clean yt-dlp download");
 
     const proc = spawn(env.YTDLP_BIN, args, { signal });
     let stderr = "";
