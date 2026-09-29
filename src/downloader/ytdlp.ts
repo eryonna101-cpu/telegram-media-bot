@@ -41,8 +41,7 @@ export function downloadWithYtdlp(opts: DownloadOptions): Promise<YtdlpResult> {
     const args: string[] = [
       "--no-playlist",
       "--no-warnings",
-      "--newline",
-      "--print-json",
+      "--no-check-certificates",
       "-o",
       outTemplate,
     ];
@@ -58,12 +57,7 @@ export function downloadWithYtdlp(opts: DownloadOptions): Promise<YtdlpResult> {
     logger.info({ mediaType, outDir }, "Starting yt-dlp download");
 
     const proc = spawn(env.YTDLP_BIN, args, { signal });
-    let stdout = "";
     let stderr = "";
-
-    proc.stdout.on("data", (d) => {
-      stdout += d.toString();
-    });
 
     proc.stderr.on("data", (d) => {
       stderr += d.toString();
@@ -77,35 +71,23 @@ export function downloadWithYtdlp(opts: DownloadOptions): Promise<YtdlpResult> {
         return reject(new Error(stderr.trim() || `yt-dlp failed with code ${code}`));
       }
 
-      try {
-        const lines = stdout.trim().split("\n");
-        let meta: any = {};
-        for (const line of lines) {
-          try {
-            const parsed = JSON.parse(line);
-            if (parsed.title) meta = parsed;
-          } catch {}
+      // البحث عن الملف المحمل مباشرة داخل المجلد المؤقت وإرساله
+      fs.readdir(outDir, (err, files) => {
+        if (err || files.length === 0) {
+          return reject(new Error("Downloaded file not found in output directory"));
         }
+        
+        const downloadedFile = path.join(outDir, files[0]);
+        const stats = fs.statSync(downloadedFile);
 
-        fs.readdir(outDir, (err, files) => {
-          if (err || files.length === 0) {
-            return reject(new Error("Downloaded file not found in output directory"));
-          }
-          
-          const downloadedFile = path.join(outDir, files[0]);
-          const stats = fs.statSync(downloadedFile);
-
-          resolve({
-            filePath: downloadedFile,
-            title: meta.title || path.parse(files[0]).name,
-            fileSize: stats.size || 0,
-            duration: meta.duration || 0,
-            platform: meta.extractor || "ytdlp",
-          });
+        resolve({
+          filePath: downloadedFile,
+          title: path.parse(files[0]).name,
+          fileSize: stats.size || 0,
+          duration: 0,
+          platform: "ytdlp",
         });
-      } catch (e) {
-        reject(e);
-      }
+      });
     });
   });
 }
