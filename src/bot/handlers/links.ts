@@ -18,7 +18,7 @@ export function registerLinks(bot: Bot): void {
     try {
       const url = text.trim();
 
-      // استخدام API بديل لـ Cobalt يعمل بكفاءة
+      // استخدام الرابط الرسمي المعتمد للخدمة
       const response = await fetch("https://co.wuk.sh/api/json", {
         method: "POST",
         headers: {
