@@ -42,6 +42,7 @@ export function downloadWithYtdlp(opts: DownloadOptions): Promise<YtdlpResult> {
       "--no-playlist",
       "--no-warnings",
       "--no-check-certificates",
+      "--geo-bypass",
       "--user-agent",
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       "-o",
@@ -56,7 +57,7 @@ export function downloadWithYtdlp(opts: DownloadOptions): Promise<YtdlpResult> {
 
     args.push(url);
 
-    logger.info({ mediaType, outDir }, "Starting clean yt-dlp download");
+    logger.info({ mediaType, outDir }, "Starting robust yt-dlp download");
 
     const proc = spawn(env.YTDLP_BIN, args, { signal });
     let stderr = "";
